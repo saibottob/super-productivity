@@ -19,8 +19,10 @@ import {
   RowItem,
   TaskFields,
   TimeFields,
+  WorkBreaks,
   WorklogExportData,
 } from './worklog-export.model';
+import { TTWorkSessionByDateMap } from '../../time-tracking/time-tracking.model';
 
 const LINE_SEPARATOR = '\n';
 const EMPTY_VAL = ' - ';
@@ -58,6 +60,19 @@ const escapeCsvField = (value: string | number | undefined): string => {
   // it; plain-text consumers will see it).
   const field = raw !== '-' && CSV_FORMULA_PREFIX_RE.test(raw) ? `'${raw}` : raw;
   return CSV_NEEDS_QUOTING_RE.test(field) ? `"${field.replace(/"/g, '""')}"` : field;
+};
+
+export const toWorkBreaks = (byDate: TTWorkSessionByDateMap): WorkBreaks => {
+  const breaks: WorkBreaks = { time: {}, nr: {} };
+  Object.entries(byDate).forEach(([date, d]) => {
+    if (d.bt) {
+      breaks.time[date] = d.bt;
+    }
+    if (d.b) {
+      breaks.nr[date] = d.b;
+    }
+  });
+  return breaks;
 };
 
 /**
@@ -124,6 +139,8 @@ const handleDateGroup = (
         dates: [day],
         workStart: data.workTimes.start[day],
         workEnd: data.workTimes.end[day],
+        breakTime: data.breaks.time[day],
+        breakNr: data.breaks.nr[day],
         timeSpent,
         timeEstimate,
       };
@@ -232,6 +249,8 @@ const handleWorklogGroup = (
         timeSpent: task.subTaskIds.length > 0 ? 0 : task.timeSpentOnDay[day],
         workStart: data.workTimes.start[day],
         workEnd: data.workTimes.end[day],
+        breakTime: data.breaks.time[day],
+        breakNr: data.breaks.nr[day],
         ...taskFields,
       };
     });
@@ -239,6 +258,7 @@ const handleWorklogGroup = (
   return taskGroups;
 };
 
+// start, end and breaks belong to the day, so only its first row carries them
 const clearRepeatedWorklogDayTimes = (rows: RowItem[]): RowItem[] => {
   const seenDays = new Set<string>();
   return rows.map((row) => {
@@ -248,6 +268,8 @@ const clearRepeatedWorklogDayTimes = (rows: RowItem[]): RowItem[] => {
         ...row,
         workStart: 0,
         workEnd: 0,
+        breakTime: 0,
+        breakNr: 0,
       };
     }
     seenDays.add(day);
@@ -371,6 +393,14 @@ export const formatRows = (
                   : row.workEnd,
               )
             : EMPTY_VAL;
+        case 'BREAK_NR':
+          return row.breakNr ? row.breakNr : EMPTY_VAL;
+        case 'BREAK_TIME_MS':
+          return row.breakTime ? row.breakTime : EMPTY_VAL;
+        case 'BREAK_TIME_STR':
+          return row.breakTime ? msToString(row.breakTime) : EMPTY_VAL;
+        case 'BREAK_TIME_CLOCK':
+          return row.breakTime ? msToClockString(row.breakTime) : EMPTY_VAL;
         case 'TITLES':
           return row.titles.join(options.separateTasksBy || '<br>');
         case 'TITLES_INCLUDING_SUB':
@@ -418,6 +448,12 @@ export const getHeadlineCol = (col: WorklogColTypes): string => {
       return 'Start';
     case 'END':
       return 'End';
+    case 'BREAK_NR':
+      return 'Breaks';
+    case 'BREAK_TIME_MS':
+    case 'BREAK_TIME_STR':
+    case 'BREAK_TIME_CLOCK':
+      return 'Break Time';
     case 'TITLES':
       // must differ from TITLES_INCLUDING_SUB: both columns can be exported
       // together to attribute a sub-task row to its parent task

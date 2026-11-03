@@ -8,11 +8,18 @@ export interface WorklogExportData {
   projects: Project[];
   tags: Tag[];
   workTimes: WorkTimes;
+  breaks: WorkBreaks;
 }
 
 export interface WorkTimes {
   start: WorkStartEnd;
   end: WorkStartEnd;
+}
+
+// break time (ms) and number of breaks, both keyed by day
+export interface WorkBreaks {
+  time: Record<string, number>;
+  nr: Record<string, number>;
 }
 
 export type TimeFields = {
@@ -21,6 +28,8 @@ export type TimeFields = {
   timeEstimate: number;
   workStart: number;
   workEnd: number;
+  breakTime?: number;
+  breakNr?: number;
 };
 
 export type TaskFields = {

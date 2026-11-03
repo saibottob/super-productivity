@@ -2551,6 +2551,9 @@
         "EDIT_COL": "Edit column",
         "GROUP_BY": "Group by",
         "O": {
+          "BREAK_TIME_AS_CLOCK": "Break time as clock (e.g. 0:45)",
+          "BREAK_TIME_AS_MILLISECONDS": "Break time as milliseconds",
+          "BREAK_TIME_AS_STRING": "Break time as string (e.g. 45m)",
           "DATE": "Date",
           "ENDED_WORKING": "Ended Working",
           "ESTIMATE_AS_CLOCK": "Estimate as clock (e.g. 5:23)",
@@ -2560,6 +2563,7 @@
           "FULL_HOURS": "full hours",
           "FULL_QUARTERS": "full quarters",
           "NOTES": "Task Notes",
+          "NR_OF_BREAKS": "Number of breaks",
           "PARENT_TASK": "Parent Task",
           "PARENT_TASK_TITLES_ONLY": "Parent Task Titles",
           "PROJECTS": "Project Names",

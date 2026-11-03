@@ -30,7 +30,9 @@ import {
   formatRows,
   formatText,
   getHeadlineCol,
+  toWorkBreaks,
 } from './worklog-export.util';
+import { toLegacyWorkStartEndMaps } from '../../time-tracking/to-legacy-work-start-end-maps';
 import { MatDialogActions, MatDialogContent } from '@angular/material/dialog';
 import { FormsModule } from '@angular/forms';
 import { MatAnchor, MatButton, MatMiniFabButton } from '@angular/material/button';
@@ -113,6 +115,10 @@ export class WorklogExportComponent implements OnInit, OnDestroy {
     { id: 'DATE', title: T.F.WORKLOG.EXPORT.O.DATE },
     { id: 'START', title: T.F.WORKLOG.EXPORT.O.STARTED_WORKING },
     { id: 'END', title: T.F.WORKLOG.EXPORT.O.ENDED_WORKING },
+    { id: 'BREAK_NR', title: T.F.WORKLOG.EXPORT.O.NR_OF_BREAKS },
+    { id: 'BREAK_TIME_MS', title: T.F.WORKLOG.EXPORT.O.BREAK_TIME_AS_MILLISECONDS },
+    { id: 'BREAK_TIME_STR', title: T.F.WORKLOG.EXPORT.O.BREAK_TIME_AS_STRING },
+    { id: 'BREAK_TIME_CLOCK', title: T.F.WORKLOG.EXPORT.O.BREAK_TIME_AS_CLOCK },
     { id: 'TITLES', title: T.F.WORKLOG.EXPORT.O.PARENT_TASK_TITLES_ONLY },
     {
       id: 'TITLES_INCLUDING_SUB',
@@ -184,18 +190,20 @@ export class WorklogExportComponent implements OnInit, OnDestroy {
         this._tagService.tags$,
         this._workContextService.activeWorkContext$.pipe(
           switchMap((ac) =>
-            from(this._timeTrackingService.getLegacyWorkStartEndForWorkContext(ac)),
+            from(this._timeTrackingService.getWorkStartEndForWorkContext(ac)),
           ),
         ),
       ])
         .pipe()
         .subscribe(([tasks, projects, tags, activeContextTimeTracking]) => {
           if (tasks) {
+            const legacyWorkTimes = toLegacyWorkStartEndMaps(activeContextTimeTracking);
             const workTimes = {
-              start: activeContextTimeTracking.workStart,
-              end: activeContextTimeTracking.workEnd,
+              start: legacyWorkTimes.workStart,
+              end: legacyWorkTimes.workEnd,
             };
-            const data = { tasks, projects, tags, workTimes };
+            const breaks = toWorkBreaks(activeContextTimeTracking);
+            const data = { tasks, projects, tags, workTimes, breaks };
             const rows = createRows(data, this.options.groupBy);
             this.formattedRows = formatRows(rows, this.options);
             // TODO format to csv

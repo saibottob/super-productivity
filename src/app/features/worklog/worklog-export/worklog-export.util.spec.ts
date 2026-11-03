@@ -1,16 +1,17 @@
 import { WorkStartEnd } from 'src/app/features/work-context/work-context.model';
-import { WorklogGrouping } from '../worklog.model';
+import { WorklogExportSettingsCopy, WorklogGrouping } from '../worklog.model';
 import {
   createRows,
   formatRows,
   formatText,
   getHeadlineCol,
+  toWorkBreaks,
 } from './worklog-export.util';
 import { DEFAULT_TASK, WorklogTask } from '../../tasks/task.model';
 import { DEFAULT_PROJECT } from '../../project/project.const';
 import { DEFAULT_TAG } from '../../tag/tag.const';
 import { Project } from 'src/app/features/project/project.model';
-import { WorklogExportData, WorkTimes } from './worklog-export.model';
+import { WorkBreaks, WorklogExportData, WorkTimes } from './worklog-export.model';
 import { Tag } from '../../tag/tag.model';
 import { msToClockString } from '../../../ui/duration/ms-to-clock-string.pipe';
 import { msToString } from '../../../ui/duration/ms-to-string.pipe';
@@ -24,6 +25,17 @@ const dateKey1 = '2021-02-05',
 const start: WorkStartEnd = { [dateKey1]: startTime1, [dateKey2]: startTime2 };
 const end: WorkStartEnd = { [dateKey1]: endTime1, [dateKey2]: endTime2 };
 const workTimes: WorkTimes = { start, end };
+const breaks: WorkBreaks = {
+  time: { [dateKey1]: 1800000 },
+  nr: { [dateKey1]: 2 },
+};
+const breakColOptions: Omit<WorklogExportSettingsCopy, 'groupBy'> = {
+  roundWorkTimeTo: null,
+  roundStartTimeTo: null,
+  roundEndTimeTo: null,
+  separateTasksBy: ' | ',
+  cols: ['DATE', 'BREAK_NR', 'BREAK_TIME_MS', 'BREAK_TIME_STR', 'BREAK_TIME_CLOCK'],
+};
 const oneHour = 3600000,
   twoHours = 7200000;
 
@@ -72,6 +84,7 @@ const createWorklogData = (
     tags: [],
     projects: [],
     workTimes: { start: {}, end: {} },
+    breaks: { time: {}, nr: {} },
     ...partialData,
   };
 };
@@ -501,6 +514,98 @@ describe('createRows', () => {
         [dateKey1, ' - ', ' - '],
         [dateKey2, '14:00', '16:00'],
       ]);
+    });
+
+    it('should only show day-level breaks on the first task row for a day', () => {
+      const rows = createRows(
+        createWorklogData({ tasks: [task1, task2], breaks }),
+        WorklogGrouping.WORKLOG,
+      );
+
+      const formattedRows = formatRows(rows, {
+        ...breakColOptions,
+        groupBy: WorklogGrouping.WORKLOG,
+      });
+
+      expect(formattedRows).toEqual([
+        [dateKey1, 2, 1800000, '30m', '0:30'],
+        [dateKey1, ' - ', ' - ', ' - ', ' - '],
+        [dateKey2, ' - ', ' - ', ' - ', ' - '],
+      ]);
+    });
+  });
+
+  describe('breaks', () => {
+    const tasks = [
+      createTask({ id: 'T1' }),
+      createTask({ id: 'T2' }),
+      createTask({ id: 'T3', timeSpentOnDay: { [dateKey2]: oneHour } }),
+    ];
+
+    it('should add the breaks of the day once when grouping by date', () => {
+      const rows = createRows(createWorklogData({ tasks, breaks }), WorklogGrouping.DATE);
+
+      expect(rows.length).toBe(2);
+      expect(rows[0].breakTime).toBe(breaks.time[dateKey1]);
+      expect(rows[0].breakNr).toBe(breaks.nr[dateKey1]);
+      expect(rows[1].breakTime).toBeUndefined();
+      expect(rows[1].breakNr).toBeUndefined();
+    });
+
+    it('should format the break columns and leave days without breaks empty', () => {
+      const rows = createRows(createWorklogData({ tasks, breaks }), WorklogGrouping.DATE);
+
+      const formattedRows = formatRows(rows, {
+        ...breakColOptions,
+        groupBy: WorklogGrouping.DATE,
+      });
+
+      expect(formattedRows).toEqual([
+        [dateKey1, 2, 1800000, '30m', '0:30'],
+        [dateKey2, ' - ', ' - ', ' - ', ' - '],
+      ]);
+    });
+
+    it('should not attribute day breaks to tasks that span several days', () => {
+      const rows = createRows(
+        createWorklogData({
+          tasks: [
+            createTask({ id: 'T1', timeSpentOnDay: { [dateKey1]: 1, [dateKey2]: 1 } }),
+          ],
+          breaks,
+        }),
+        WorklogGrouping.TASK,
+      );
+
+      const formattedRows = formatRows(rows, {
+        ...breakColOptions,
+        groupBy: WorklogGrouping.TASK,
+      });
+
+      expect(formattedRows).toEqual([
+        [dateKey1 + ' - ' + dateKey2, ' - ', ' - ', ' - ', ' - '],
+      ]);
+    });
+
+    it('should use the same header for all break time columns', () => {
+      expect(getHeadlineCol('BREAK_NR')).toBe('Breaks');
+      expect(getHeadlineCol('BREAK_TIME_MS')).toBe('Break Time');
+      expect(getHeadlineCol('BREAK_TIME_STR')).toBe('Break Time');
+      expect(getHeadlineCol('BREAK_TIME_CLOCK')).toBe('Break Time');
+    });
+  });
+
+  describe('toWorkBreaks', () => {
+    it('should map break time and number by day and skip empty entries', () => {
+      expect(
+        toWorkBreaks({
+          [dateKey1]: { bt: 1800000, b: 2 },
+          [dateKey2]: { s: startTime2 },
+        }),
+      ).toEqual({
+        time: { [dateKey1]: 1800000 },
+        nr: { [dateKey1]: 2 },
+      });
     });
   });
 });
